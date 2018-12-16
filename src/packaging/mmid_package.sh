@@ -10,27 +10,46 @@ for package_name in "${names[@]}"
 do 
     echo $package_name
     # Pull down package from S3 and untar, putting it in a folder
-    aws s3 cp s3://brendan.callahan.thesis/packages/$package_name .
+    #aws s3 cp s3://brendan.callahan.thesis/packages/$package_name .
     old_package_name=`echo $package_name | sed 's/.tar//'`
     mkdir $old_package_name/
     tar xvf $package_name -C $old_package_name/
+    for i in $( ls $old_package_name ); do
+	tar xzvf $old_package_name/$i -C $old_package_name/
+	rm $old_package_name/$i
+    done
     new_package_name=scale-`echo $package_name | sed 's/.tar//'`
+    mkdir -p $new_package_name
 
     # Scale images and put them in a new folder
     mkdir $new_package_name
-    bash scale_package.sh $old_package_name $new_package_name
+    bash resize_images.sh $PWD/$old_package_name $PWD/$new_package_name || exit 1
 
     # Tar up the new package!
     tar czvf ${new_package_name}.tgz $new_package_name/
 
     # Make the mini-package!
     mini_package_name=mini-`echo $package_name | sed 's/.tar//'`
-    mkdir $mini_package_name
-    bash make_mini_package.sh $new_package_name $mini_package_name
+    mkdir -p $mini_package_name
+    bash make_mini_package.sh $new_package_name $mini_package_name || exit 1
+    tar czvf ${mini_package_name}.tgz $mini_package_name
 
     # Make the metadata file!
-    metadata_name=metadata-`echo $package_name | sed 's/.tar//'`
-    python package_metadata.py $new_package_name $metadata_name
+    metadata_name=metadata-`echo $package_name | sed 's/.tar//'`.jsonl
+    python package_metadata.py $new_package_name $metadata_name || exit 1
+
+    # Copy the files to s3; real progress!
+    aws s3 cp $metadata_name s3://brendan.callahan.thesis/mmid/language_metadata_files/
+    aws s3 cp ${new_package_name}.tgz s3://brendan.callahan.thesis/mmid/language_image_packages/
+    aws s3 cp ${mini_package_name}.tgz s3://brendan.callahan.thesis/mmid/mini_language_image_packages/
+
+    # Remove the evidence! (That is, remove old files so there's disk space for new files)
+    rm -r $old_package_name
+    rm -r $new_package_name
+    rm -r ${new_package_name}.tgz
+    rm -r ${mini_package_name}
+    rm -r ${mini_package_name}.tgz
+    rm $metadata_name
 
 done
 
