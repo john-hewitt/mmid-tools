@@ -23,6 +23,8 @@ with open(args.output_filepath, 'w') as fout:
             continue
         metadata_path = os.path.join(dir_path, 'metadata.json')
         word_path = os.path.join(dir_path, 'word.txt')
+        if (not os.path.exists(metadata_path)) or (not os.path.exists(word_path)):
+            continue
         metadata = json.load(open(metadata_path))
         word = open(word_path).read().strip()
         image_dict = {}
